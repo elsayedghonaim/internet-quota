@@ -10,7 +10,8 @@ import {
   LogOut,
   Server,
   Signal,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 
 // --- Configuration ---
@@ -47,6 +48,42 @@ const QuotaCard = ({ account, onDelete }) => {
   const percentLeft = total > 0 ? (remain / total) * 100 : 0;
   const isLow = percentLeft <= 10 && total > 0;
 
+  // --- Force re-render every minute to update relative time ---
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(tick => tick + 1);
+    }, 60000); // Update every 60 seconds
+    return () => clearInterval(timer);
+  }, []);
+
+  // Helper to format "Time Ago"
+  const getTimeAgo = (dateStr) => {
+    if (!dateStr) return 'Never';
+    
+    // Ensure we treat the server string as UTC (by appending Z if missing)
+    // Python datetime.utcnow() is naive, so usually requires this hint for JS
+    const utcDateStr = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`;
+    const date = new Date(utcDateStr);
+    const now = new Date();
+    
+    // Calculate difference in seconds
+    const diffInSeconds = Math.max(0, Math.floor((now - date) / 1000));
+
+    if (diffInSeconds < 60) return 'Just now';
+    
+    const minutes = Math.floor(diffInSeconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+
+    return date.toLocaleDateString(); // Fallback to date for older checks
+  };
+
   return (
     <div className={`relative bg-white rounded-xl shadow-md border-l-4 p-5 hover:shadow-lg transition-shadow duration-300 ${isLow ? 'border-red-500' : 'border-blue-500'}`}>
       {isLow && (
@@ -81,9 +118,17 @@ const QuotaCard = ({ account, onDelete }) => {
 
       <ProgressBar used={used} total={total} />
       
-      <div className="mt-4 flex justify-between items-center text-xs text-gray-400">
-        <span>Exp: {account.expires_on ? account.expires_on.split(' ')[0] : 'N/A'}</span>
-        <span>{account.offer_name || 'Loading...'}</span>
+      {/* Updated Footer Section */}
+      <div className="mt-4 flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-3">
+        <div className="flex flex-col space-y-1">
+          <span className="font-medium text-gray-700">{account.offer_name || 'Unknown Offer'}</span>
+          <span className="text-gray-400">Exp: {account.expires_on ? account.expires_on.split(' ')[0] : 'N/A'}</span>
+        </div>
+        
+        <div className="flex items-center bg-gray-50 px-2 py-1 rounded-md text-gray-400" title={`Last checked: ${account.last_check}`}>
+           <Clock size={12} className="mr-1.5" />
+           <span>{getTimeAgo(account.last_check)}</span>
+        </div>
       </div>
     </div>
   );
@@ -502,5 +547,4 @@ export default function App() {
       />
     </div>
   );
-
 }
